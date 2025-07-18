@@ -2,7 +2,7 @@
   "name": "Breastfeeding Tracker",
   "short_name": "Feed Tracker",
   "description": "One-handed breastfeeding tracking app for mothers",
-  "start_url": "/",
+  "start_url": "/breastfeeding-tracker/",
   "display": "standalone",
   "background_color": "#fdf2f8",
   "theme_color": "#ec4899",
