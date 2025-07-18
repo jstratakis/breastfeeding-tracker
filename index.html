@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Breastfeeding Tracker</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ec4899">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Feed Tracker">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        // Simple SVG icons
+        const Play = () => (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="5,3 19,12 5,21 5,3"></polygon>
+            </svg>
+        );
+        
+        const Pause = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+            </svg>
+        );
+        
+        const RotateCcw = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="1,4 1,10 7,10"></polyline>
+                <path d="M3.51,15a9,9,0,0,0,14.85-3.36,9,9,0,0,0-5.51-11.48"></path>
+            </svg>
+        );
+        
+        const Calendar = () => (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+        );
+        
+        const Clock = () => (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12,6 12,12 16,14"></polyline>
+            </svg>
+        );
+        
+        const Baby = () => (
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 12a4 4 0 1 1 8 0c0 1.5-2 4-4 4s-4-2.5-4-4Z"></path>
+                <path d="M8 14v.5c0 .5.5 1 1 1h6c.5 0 1-.5 1-1V14"></path>
+                <path d="M16 12V9a4 4 0 1 0-8 0v3"></path>
+            </svg>
+        );
+        
+        const ChevronDown = () => (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="6,9 12,15 18,9"></polyline>
+            </svg>
+        );
+        
+        const ChevronUp = () => (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="18,15 12,9 6,15"></polyline>
+            </svg>
+        );
+        
+        const Bottle = () => (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 17v-4a8 8 0 1 1 16 0v4H5Z"></path>
+                <path d="M5 17h16v2a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-2Z"></path>
+                <path d="M12 1v4"></path>
+                <path d="M10 5h4"></path>
+            </svg>
+        );
+
+        const BreastfeedingTracker = () => {
+            const [currentSession, setCurrentSession] = useState(null);
+            const [timer, setTimer] = useState(0);
+            const [sessions, setSessions] = useState([]);
+            const [activeInterval, setActiveInterval] = useState(null);
+            const [showAllHistory, setShowAllHistory] = useState(false);
+            const [historyLimit, setHistoryLimit] = useState(7);
+            const [showFormulaModal, setShowFormulaModal] = useState(false);
+            const [formulaAmount, setFormulaAmount] = useState('');
+            const [showCalendarView, setShowCalendarView] = useState(false);
+
+            // Load data from localStorage
+            useEffect(() => {
+                const savedSessions = localStorage.getItem('breastfeeding-sessions');
+                if (savedSessions) {
+                    try {
+                        const parsedSessions = JSON.parse(savedSessions).map(session => ({
+                            ...session,
+                            startTime: new Date(session.startTime),
+                            endTime: session.endTime ? new Date(session.endTime) : null
+                        }));
+                        setSessions(parsedSessions);
+                    } catch (error) {
+                        console.error('Error loading saved sessions:', error);
+                    }
+                }
+            }, []);
+
+            // Save sessions to localStorage
+            useEffect(() => {
+                if (sessions.length > 0) {
+                    localStorage.setItem('breastfeeding-sessions', JSON.stringify(sessions));
+                }
+            }, [sessions]);
+
+            useEffect(() => {
+                if (currentSession) {
+                    const interval = setInterval(() => {
+                        setTimer(prev => prev + 1);
+                    }, 1000);
+                    setActiveInterval(interval);
+                    return () => clearInterval(interval);
+                } else {
+                    if (activeInterval) {
+                        clearInterval(activeInterval);
+                        setActiveInterval(null);
+                    }
+                }
+            }, [currentSession]);
+
+            const formatTime = (seconds) => {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            };
+
+            const startSession = (side) => {
+                const newSession = {
+                    id: Date.now(),
+                    side,
+                    startTime: new Date(),
+                    duration: 0
+                };
+                setCurrentSession(newSession);
+                setTimer(0);
+            };
+
+            const stopSession = () => {
+                if (currentSession) {
+                    const completedSession = {
+                        ...currentSession,
+                        duration: timer,
+                        endTime: new Date()
+                    };
+                    setSessions(prev => [completedSession, ...prev]);
+                    setCurrentSession(null);
+                    setTimer(0);
+                }
+            };
+
+            const resetTimer = () => {
+                setTimer(0);
+            };
+
+            const addFormulaFeed = () => {
+                if (formulaAmount && formulaAmount > 0) {
+                    const formulaSession = {
+                        id: Date.now(),
+                        type: 'formula',
+                        amount: parseInt(formulaAmount),
+                        startTime: new Date(),
+                        endTime: new Date(),
+                        duration: 0
+                    };
+                    setSessions(prev => [formulaSession, ...prev]);
+                    setFormulaAmount('');
+                    setShowFormulaModal(false);
+                }
+            };
+
+            const getTodaysSessions = () => {
+                const today = new Date().toDateString();
+                return sessions.filter(session => 
+                    session.startTime.toDateString() === today
+                );
+            };
+
+            const getTotalTimeToday = () => {
+                const todaysSessions = getTodaysSessions();
+                return todaysSessions.reduce((total, session) => total + (session.duration || 0), 0);
+            };
+
+            const getTodaysSideStats = () => {
+                const todaysSessions = getTodaysSessions();
+                const leftSessions = todaysSessions.filter(s => s.side === 'left');
+                const rightSessions = todaysSessions.filter(s => s.side === 'right');
+                const formulaSessions = todaysSessions.filter(s => s.type === 'formula');
+                
+                return {
+                    left: {
+                        count: leftSessions.length,
+                        duration: leftSessions.reduce((total, session) => total + session.duration, 0)
+                    },
+                    right: {
+                        count: rightSessions.length,
+                        duration: rightSessions.reduce((total, session) => total + session.duration, 0)
+                    },
+                    formula: {
+                        count: formulaSessions.length,
+                        amount: formulaSessions.reduce((total, session) => total + session.amount, 0)
+                    }
+                };
+            };
+
+            const getDailyStats = () => {
+                const dailyStats = {};
+                
+                sessions.forEach(session => {
+                    const dateKey = session.startTime.toDateString();
+                    if (!dailyStats[dateKey]) {
+                        dailyStats[dateKey] = {
+                            date: session.startTime,
+                            left: { count: 0, duration: 0 },
+                            right: { count: 0, duration: 0 },
+                            formula: { count: 0, amount: 0 },
+                            total: { count: 0, duration: 0 }
+                        };
+                    }
+                    
+                    if (session.type === 'formula') {
+                        dailyStats[dateKey].formula.count++;
+                        dailyStats[dateKey].formula.amount += session.amount;
+                    } else {
+                        dailyStats[dateKey][session.side].count++;
+                        dailyStats[dateKey][session.side].duration += session.duration;
+                        dailyStats[dateKey].total.duration += session.duration;
+                    }
+                    dailyStats[dateKey].total.count++;
+                });
+                
+                return Object.values(dailyStats).sort((a, b) => b.date - a.date);
+            };
+
+            const loadMoreHistory = () => {
+                setHistoryLimit(prev => prev + 7);
+            };
+
+            const toggleHistoryView = () => {
+                setShowAllHistory(!showAllHistory);
+                if (!showAllHistory) {
+                    setHistoryLimit(getDailyStats().length);
+                } else {
+                    setHistoryLimit(7);
+                }
+            };
+
+            const addDemoData = () => {
+                const demoSessions = [];
+                const now = new Date();
+                
+                // Generate demo data for the past 10 days
+                for (let i = 0; i < 10; i++) {
+                    const date = new Date(now);
+                    date.setDate(date.getDate() - i);
+                    
+                    // Random number of feeds per day (4-8)
+                    const feedsPerDay = 4 + Math.floor(Math.random() * 5);
+                    
+                    for (let j = 0; j < feedsPerDay; j++) {
+                        const feedTime = new Date(date);
+                        feedTime.setHours(6 + j * 3 + Math.floor(Math.random() * 2)); // Spread throughout day
+                        feedTime.setMinutes(Math.floor(Math.random() * 60));
+                        
+                        if (Math.random() < 0.2) {
+                            // 20% chance of formula feed
+                            demoSessions.push({
+                                id: Date.now() + Math.random(),
+                                type: 'formula',
+                                amount: 60 + Math.floor(Math.random() * 80), // 60-140ml
+                                startTime: feedTime,
+                                endTime: feedTime,
+                                duration: 0
+                            });
+                        } else {
+                            // Breast feed
+                            const side = Math.random() < 0.5 ? 'left' : 'right';
+                            const duration = 300 + Math.floor(Math.random() * 900); // 5-20 minutes
+                            demoSessions.push({
+                                id: Date.now() + Math.random(),
+                                side: side,
+                                startTime: feedTime,
+                                endTime: new Date(feedTime.getTime() + duration * 1000),
+                                duration: duration
+                            });
+                        }
+                    }
+                }
+                
+                setSessions(prev => [...demoSessions.sort((a, b) => b.startTime - a.startTime), ...prev]);
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 p-4">
+                    <div className="max-w-md mx-auto">
+                        {/* Header */}
+                        <div className="text-center mb-8">
+                            <div className="flex items-center justify-center mb-3">
+                                <Baby />
+                                <h1 className="text-2xl font-bold text-gray-800 ml-2">Feeding Tracker</h1>
+                            </div>
+                            <p className="text-gray-600 text-sm">One-handed tracking made simple</p>
+                        </div>
+
+                        {/* Current Session Display */}
+                        {currentSession && (
+                            <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border-2 border-pink-200">
+                                <div className="text-center">
+                                    <div className="text-4xl font-bold text-pink-600 mb-2">
+                                        {formatTime(timer)}
+                                    </div>
+                                    <div className="text-lg text-gray-700 mb-4">
+                                        Feeding from {currentSession.side} side
+                                    </div>
+                                    <div className="flex justify-center space-x-4">
+                                        <button
+                                            onClick={resetTimer}
+                                            className="bg-gray-100 hover:bg-gray-200 rounded-full p-4 transition-colors"
+                                        >
+                                            <RotateCcw />
+                                        </button>
+                                        <button
+                                            onClick={stopSession}
+                                            className="bg-red-500 hover:bg-red-600 rounded-full p-4 transition-colors"
+                                        >
+                                            <Pause />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Start Session Buttons */}
+                        {!currentSession && (
+                            <div className="space-y-4 mb-6">
+                                <button
+                                    onClick={() => startSession('left')}
+                                    className="w-full bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white rounded-2xl py-6 px-8 text-xl font-semibold shadow-lg transition-all transform hover:scale-105"
+                                >
+                                    <div className="flex items-center justify-center">
+                                        <Play />
+                                        <span className="ml-3">Start Left Side</span>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => startSession('right')}
+                                    className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-2xl py-6 px-8 text-xl font-semibold shadow-lg transition-all transform hover:scale-105"
+                                >
+                                    <div className="flex items-center justify-center">
+                                        <Play />
+                                        <span className="ml-3">Start Right Side</span>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => setShowFormulaModal(true)}
+                                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-2xl py-6 px-8 text-xl font-semibold shadow-lg transition-all transform hover:scale-105"
+                                >
+                                    <div className="flex items-center justify-center">
+                                        <Bottle />
+                                        <span className="ml-3">Add Formula Feed</span>
+                                    </div>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Formula Modal */}
+                        {showFormulaModal && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                                <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+                                    <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Formula Feed</h3>
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Amount (ml)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={formulaAmount}
+                                            onChange={(e) => setFormulaAmount(e.target.value)}
+                                            placeholder="Enter ml amount"
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div className="flex space-x-3">
+                                        <button
+                                            onClick={() => {
+                                                setShowFormulaModal(false);
+                                                setFormulaAmount('');
+                                            }}
+                                            className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={addFormulaFeed}
+                                            className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors"
+                                            disabled={!formulaAmount || formulaAmount <= 0}
+                                        >
+                                            Add Feed
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Today's Summary */}
+                        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+                                    <Calendar />
+                                    <span className="ml-2">Today's Summary</span>
+                                </h2>
+                                <div className="flex space-x-2">
+                                    {sessions.length === 0 && (
+                                        <button
+                                            onClick={addDemoData}
+                                            className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                                        >
+                                            📊 Demo
+                                        </button>
+                                    )}
+                                    {sessions.length > 0 && (
+                                        <button
+                                            onClick={() => setShowCalendarView(true)}
+                                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center"
+                                        >
+                                            <Calendar />
+                                            <span className="ml-1">Calendar</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold text-blue-600">
+                                        {getTodaysSessions().length}
+                                    </div>
+                                    <div className="text-sm text-gray-600">Total Sessions</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold text-green-600">
+                                        {formatTime(getTotalTimeToday())}
+                                    </div>
+                                    <div className="text-sm text-gray-600">Total Time</div>
+                                </div>
+                            </div>
+                            
+                            {/* Side-by-side stats */}
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="bg-pink-50 rounded-lg p-3">
+                                    <div className="text-center">
+                                        <div className="text-lg font-bold text-pink-600">
+                                            {getTodaysSideStats().left.count}
+                                        </div>
+                                        <div className="text-xs text-gray-600 mb-1">Left</div>
+                                        <div className="text-sm font-semibold text-pink-700">
+                                            {formatTime(getTodaysSideStats().left.duration)}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-purple-50 rounded-lg p-3">
+                                    <div className="text-center">
+                                        <div className="text-lg font-bold text-purple-600">
+                                            {getTodaysSideStats().right.count}
+                                        </div>
+                                        <div className="text-xs text-gray-600 mb-1">Right</div>
+                                        <div className="text-sm font-semibold text-purple-700">
+                                            {formatTime(getTodaysSideStats().right.duration)}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-blue-50 rounded-lg p-3">
+                                    <div className="text-center">
+                                        <div className="text-lg font-bold text-blue-600">
+                                            {getTodaysSideStats().formula.count}
+                                        </div>
+                                        <div className="text-xs text-gray-600 mb-1">Formula</div>
+                                        <div className="text-sm font-semibold text-blue-700">
+                                            {getTodaysSideStats().formula.amount} ml
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Calendar View Modal */}
+                        {showCalendarView && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                                <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="text-2xl font-bold text-gray-800">Feeding Calendar</h3>
+                                        <button
+                                            onClick={() => setShowCalendarView(false)}
+                                            className="bg-gray-200 hover:bg-gray-300 rounded-full p-2 transition-colors"
+                                        >
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="space-y-4">
+                                        {getDailyStats().map((dayStats, index) => {
+                                            // Get all sessions for this day
+                                            const dayKey = dayStats.date.toDateString();
+                                            const daySessions = sessions.filter(session => 
+                                                session.startTime.toDateString() === dayKey
+                                            ).sort((a, b) => b.startTime - a.startTime); // Most recent first
+                                            
+                                            return (
+                                                <div key={dayStats.date.toDateString()} className="border border-gray-200 rounded-lg p-4">
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <div className="font-bold text-lg text-gray-800">
+                                                            {index === 0 ? '📅 Today' : 
+                                                             index === 1 ? '📅 Yesterday' : 
+                                                             `📅 ${dayStats.date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}`}
+                                                        </div>
+                                                        <div className="text-sm text-gray-600 font-medium">
+                                                            {dayStats.total.count} total feeds
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Daily stats grid */}
+                                                    <div className="grid grid-cols-3 gap-4 mb-4">
+                                                        <div className="bg-pink-50 rounded-lg p-3 text-center">
+                                                            <div className="text-2xl font-bold text-pink-600">{dayStats.left.count}</div>
+                                                            <div className="text-xs text-gray-600 mb-1">Left Breast</div>
+                                                            <div className="text-sm font-semibold text-pink-700">
+                                                                {formatTime(dayStats.left.duration)}
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-purple-50 rounded-lg p-3 text-center">
+                                                            <div className="text-2xl font-bold text-purple-600">{dayStats.right.count}</div>
+                                                            <div className="text-xs text-gray-600 mb-1">Right Breast</div>
+                                                            <div className="text-sm font-semibold text-purple-700">
+                                                                {formatTime(dayStats.right.duration)}
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-blue-50 rounded-lg p-3 text-center">
+                                                            <div className="text-2xl font-bold text-blue-600">{dayStats.formula.count}</div>
+                                                            <div className="text-xs text-gray-600 mb-1">Formula</div>
+                                                            <div className="text-sm font-semibold text-blue-700">
+                                                                {dayStats.formula.amount} ml
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Individual session timeline - SAME AS DAILY TIMELINE */}
+                                                    <div className="space-y-2">
+                                                        <div className="text-sm font-semibold text-gray-700 border-b border-gray-200 pb-1">
+                                                            🕐 Feeding Timeline:
+                                                        </div>
+                                                        {daySessions.map(session => (
+                                                            <div key={session.id} className="flex justify-between items-center bg-gray-50 rounded-lg p-2">
+                                                                <div className="flex items-center">
+                                                                    {session.type === 'formula' ? (
+                                                                        <div className="w-3 h-3 bg-blue-400 rounded-full mr-2"></div>
+                                                                    ) : (
+                                                                        <div className={`w-3 h-3 rounded-full mr-2 ${
+                                                                            session.side === 'left' ? 'bg-pink-400' : 'bg-purple-400'
+                                                                        }`}></div>
+                                                                    )}
+                                                                    <div>
+                                                                        <div className="text-sm font-medium text-gray-800">
+                                                                            {session.type === 'formula' ? 'Formula' : `${session.side} side`}
+                                                                        </div>
+                                                                        <div className="text-xs text-gray-600">
+                                                                            {session.startTime.toLocaleTimeString([], {
+                                                                                hour: '2-digit',
+                                                                                minute: '2-digit'
+                                                                            })}
+                                                                            {session.type !== 'formula' && session.endTime && (
+                                                                                <span> - {session.endTime.toLocaleTimeString([], {
+                                                                                    hour: '2-digit',
+                                                                                    minute: '2-digit'
+                                                                                })}</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <div className="text-sm font-bold text-gray-800">
+                                                                        {session.type === 'formula' ? `${session.amount} ml` : formatTime(session.duration)}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    
+                                                    {/* Summary bar */}
+                                                    <div className="bg-gray-50 rounded-lg p-2 text-center mt-3">
+                                                        <span className="text-sm text-gray-700">
+                                                            <strong>Total feeding time:</strong> {formatTime(dayStats.total.duration)}
+                                                            {dayStats.formula.amount > 0 && (
+                                                                <span> • <strong>Total formula:</strong> {dayStats.formula.amount} ml</span>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        
+                                        {/* Overall summary */}
+                                        <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4 border-2 border-green-200">
+                                            <h4 className="font-bold text-lg text-green-800 mb-2">📊 Overall Summary</h4>
+                                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                                <div>
+                                                    <strong className="text-green-700">Total days tracked:</strong> {getDailyStats().length}
+                                                </div>
+                                                <div>
+                                                    <strong className="text-green-700">Total feeds:</strong> {sessions.length}
+                                                </div>
+                                                <div>
+                                                    <strong className="text-pink-600">Total left feeds:</strong> {sessions.filter(s => s.side === 'left').length}
+                                                </div>
+                                                <div>
+                                                    <strong className="text-purple-600">Total right feeds:</strong> {sessions.filter(s => s.side === 'right').length}
+                                                </div>
+                                                <div>
+                                                    <strong className="text-blue-600">Total formula feeds:</strong> {sessions.filter(s => s.type === 'formula').length}
+                                                </div>
+                                                <div>
+                                                    <strong className="text-blue-600">Total formula amount:</strong> {sessions.filter(s => s.type === 'formula').reduce((total, s) => total + s.amount, 0)} ml
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Daily History */}
+                        {getDailyStats().length > 0 && (
+                            <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+                                        <Clock />
+                                        <span className="ml-2">Daily Timeline</span>
+                                    </h2>
+                                    {getDailyStats().length > 7 && (
+                                        <button
+                                            onClick={toggleHistoryView}
+                                            className="flex items-center text-blue-500 hover:text-blue-600 text-sm font-medium"
+                                        >
+                                            {showAllHistory ? (
+                                                <>
+                                                    Show Less <ChevronUp />
+                                                </>
+                                            ) : (
+                                                <>
+                                                    Show All <ChevronDown />
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="space-y-4">
+                                    {getDailyStats().slice(0, showAllHistory ? undefined : historyLimit).map((dayStats, index) => {
+                                        // Get all sessions for this day
+                                        const dayKey = dayStats.date.toDateString();
+                                        const daySessions = sessions.filter(session => 
+                                            session.startTime.toDateString() === dayKey
+                                        ).sort((a, b) => b.startTime - a.startTime); // Most recent first
+                                        
+                                        return (
+                                            <div key={dayStats.date.toDateString()} className="border border-gray-200 rounded-lg p-4">
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <div className="font-bold text-lg text-gray-800">
+                                                        {index === 0 ? '📅 Today' : 
+                                                         index === 1 ? '📅 Yesterday' : 
+                                                         `📅 ${dayStats.date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}`}
+                                                    </div>
+                                                    <div className="text-sm text-gray-600 font-medium">
+                                                        {dayStats.total.count} feeds • {formatTime(dayStats.total.duration)}
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* Daily summary stats */}
+                                                <div className="grid grid-cols-3 gap-2 mb-3 text-xs">
+                                                    <div className="bg-pink-50 rounded p-2 text-center">
+                                                        <div className="font-bold text-pink-600">{dayStats.left.count}</div>
+                                                        <div className="text-gray-600">Left ({formatTime(dayStats.left.duration)})</div>
+                                                    </div>
+                                                    <div className="bg-purple-50 rounded p-2 text-center">
+                                                        <div className="font-bold text-purple-600">{dayStats.right.count}</div>
+                                                        <div className="text-gray-600">Right ({formatTime(dayStats.right.duration)})</div>
+                                                    </div>
+                                                    <div className="bg-blue-50 rounded p-2 text-center">
+                                                        <div className="font-bold text-blue-600">{dayStats.formula.count}</div>
+                                                        <div className="text-gray-600">Formula ({dayStats.formula.amount}ml)</div>
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* Individual session timeline */}
+                                                <div className="space-y-2">
+                                                    <div className="text-sm font-semibold text-gray-700 border-b border-gray-200 pb-1">
+                                                        🕐 Feeding Timeline:
+                                                    </div>
+                                                    {daySessions.map(session => (
+                                                        <div key={session.id} className="flex justify-between items-center bg-gray-50 rounded-lg p-2">
+                                                            <div className="flex items-center">
+                                                                {session.type === 'formula' ? (
+                                                                    <div className="w-3 h-3 bg-blue-400 rounded-full mr-2"></div>
+                                                                ) : (
+                                                                    <div className={`w-3 h-3 rounded-full mr-2 ${
+                                                                        session.side === 'left' ? 'bg-pink-400' : 'bg-purple-400'
+                                                                    }`}></div>
+                                                                )}
+                                                                <div>
+                                                                    <div className="text-sm font-medium text-gray-800">
+                                                                        {session.type === 'formula' ? 'Formula' : `${session.side} side`}
+                                                                    </div>
+                                                                    <div className="text-xs text-gray-600">
+                                                                        {session.startTime.toLocaleTimeString([], {
+                                                                            hour: '2-digit',
+                                                                            minute: '2-digit'
+                                                                        })}
+                                                                        {session.type !== 'formula' && session.endTime && (
+                                                                            <span> - {session.endTime.toLocaleTimeString([], {
+                                                                                hour: '2-digit',
+                                                                                minute: '2-digit'
+                                                                            })}</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <div className="text-sm font-bold text-gray-800">
+                                                                    {session.type === 'formula' ? `${session.amount} ml` : formatTime(session.duration)}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                
+                                {!showAllHistory && historyLimit < getDailyStats().length && (
+                                    <div className="text-center mt-4">
+                                        <button
+                                            onClick={loadMoreHistory}
+                                            className="text-blue-500 hover:text-blue-600 text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors"
+                                        >
+                                            Load More Days ({getDailyStats().length - historyLimit} remaining)
+                                        </button>
+                                    </div>
+                                )}
+                                
+                                {getDailyStats().length > 7 && (
+                                    <div className="mt-4 pt-4 border-t border-gray-100">
+                                        <div className="text-center text-sm text-gray-600">
+                                            <strong>{getDailyStats().length}</strong> days of history • 
+                                            <strong> {sessions.length}</strong> total feeds
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Recent Sessions */}
+                        {sessions.length > 0 && (
+                            <div className="bg-white rounded-2xl shadow-lg p-6">
+                                <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                    <Clock />
+                                    <span className="ml-2">Recent Sessions</span>
+                                </h2>
+                                <div className="space-y-3">
+                                    {sessions.slice(0, 5).map(session => (
+                                        <div key={session.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                            <div>
+                                                <div className="font-medium text-gray-800">
+                                                    {session.type === 'formula' ? (
+                                                        <span className="flex items-center">
+                                                            <div className="w-3 h-3 bg-blue-400 rounded-full mr-2"></div>
+                                                            Formula feed
+                                                        </span>
+                                                    ) : (
+                                                        <span className="flex items-center">
+                                                            <div className={`w-3 h-3 rounded-full mr-2 ${
+                                                                session.side === 'left' ? 'bg-pink-400' : 'bg-purple-400'
+                                                            }`}></div>
+                                                            {session.side} side
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-sm text-gray-600">
+                                                    {session.startTime.toLocaleTimeString([], {
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="font-bold text-gray-800">
+                                                    {session.type === 'formula' ? `${session.amount} ml` : formatTime(session.duration)}
+                                                </div>
+                                                <div className="text-sm text-gray-600">
+                                                    {session.startTime.toLocaleDateString() === new Date().toLocaleDateString() 
+                                                        ? 'Today' 
+                                                        : session.startTime.toLocaleDateString()}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* First Time Message */}
+                        {sessions.length === 0 && !currentSession && (
+                            <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
+                                <Baby />
+                                <h3 className="text-lg font-semibold text-gray-800 mb-2 mt-4">
+                                    Ready to start tracking!
+                                </h3>
+                                <p className="text-gray-600 text-sm">
+                                    Tap a button above to begin your first feeding session. All sessions will be saved automatically.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(registration => console.log('SW registered'))
+                .catch(error => console.log('SW registration failed'));
+        }
+
+        ReactDOM.render(React.createElement(BreastfeedingTracker), document.getElementById('root'));
+    </script>
+</body>
+</html>
