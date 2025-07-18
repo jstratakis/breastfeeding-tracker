@@ -12,6 +12,7 @@
     <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
     <link rel="stylesheet" href="src/css/main.css">
     
+    <!-- External Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -20,15 +21,13 @@
 <body>
     <div id="root"></div>
     
-    <!-- Load configuration first -->
+    <!-- Application Scripts (order matters!) -->
     <script src="src/js/config/constants.js"></script>
-    <!-- Load UI components -->
-    <script src="src/js/components/ui/Icons.js"></script>
-    <!-- Load main app -->
+    <script type="text/babel" src="src/js/components/ui/Icons.js"></script>
     <script type="text/babel" src="src/js/app.js"></script>
     
+    <!-- Service Worker -->
     <script>
-        // Register service worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
                 .then(registration => console.log('SW registered'))
